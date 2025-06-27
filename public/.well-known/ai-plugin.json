@@ -1,0 +1,22 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "SYNDESIS Plugin",
+  "name_for_model": "syndesis",
+  "description_for_human": "SYNDESIS is an internal architecture assistant.",
+  "description_for_model": "Helps organize personal architecture, threads, and decisions.",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://syndesis.social/openapi.yaml"
+  },
+  "logo_url": "https://syndesis.social/logo.png",
+  "contact_email": "george@synarch.io",
+  "legal_info_url": "https://syndesis.social/legal",
+  "servers": [
+    {
+      "url": "https://syndesis.social"
+    }
+  ]
+}
