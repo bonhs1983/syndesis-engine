@@ -1,9 +1,12 @@
 openapi: 3.1.0
+
 info:
   title: SYNDESIS API
   version: 1.0.0
+
 servers:
-  - url: https://syndesis.social      # ☑️ πλήρης HTTPS URL
+  - url: https://syndesis.social   # ✔ πλήρης HTTPS URL
+
 paths:
   /health:
     get:
@@ -19,3 +22,43 @@ paths:
                 properties:
                   status:
                     type: string
+
+  /thread:
+    post:
+      summary: Create a new thread entry
+      operationId: postThread
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ThreadInput'
+      responses:
+        '201':
+          description: Thread created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadResponse'
+
+components:
+  schemas:
+    ThreadInput:
+      type: object
+      required:
+        - message
+      properties:
+        userId:
+          type: string
+          description: Optional user identifier
+        message:
+          type: string
+          description: Content of the thread message
+        metadata:
+          type: object
+          description: Arbitrary extra data
+
+    ThreadResponse:
+      type: object
+      properties:
+        status:

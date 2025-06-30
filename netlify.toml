@@ -1,2 +1,6 @@
 [build]
-  publish = "public"
+  publish   = "public"
+  functions = "netlify/functions"
+
+[context.production.environment]
+  API_SECRET = "s3cr3t123"

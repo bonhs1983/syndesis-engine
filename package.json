@@ -1,0 +1,23 @@
+{
+  "name": "syndesis_plugin_public",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bonhs1983/syndesis-plugin.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bonhs1983/syndesis-plugin/issues"
+  },
+  "homepage": "https://github.com/bonhs1983/syndesis-plugin#readme",
+  "description": "",
+  "dependencies": {
+    "redis": "^5.5.6"
+  }
+}
