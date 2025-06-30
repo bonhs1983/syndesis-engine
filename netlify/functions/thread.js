@@ -1,44 +1,31 @@
 // netlify/functions/thread.js
-const { getRedis } = require('./redis-client.js');  // helper με 1 μοναδικό Redis client
+const { getRedis } = require('./redis-client.js');
+const OpenAI      = require('openai').default;
+const openai      = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ----------------------------------------------------
-// CORS – κοινά headers για κάθε απάντηση
-// ----------------------------------------------------
+// ─────────────────────────────────────────────────────
 const CORS = {
   'Access-Control-Allow-Origin' : '*',
   'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
-
-// ----------------------------------------------------
-// Main handler
-// ----------------------------------------------------
+// ─────────────────────────────────────────────────────
 exports.handler = async (event) => {
-  // 0. Pre-flight (OPTIONS)
-  if (event.httpMethod === 'OPTIONS') {
+  if (event.httpMethod === 'OPTIONS')
     return { statusCode: 204, headers: CORS };
-  }
 
-  // 1. Έλεγχος API-key (προαιρετικό – βγάλε το αν δεν χρειάζεται)
-  if (process.env.API_SECRET && event.headers['x-api-key'] !== process.env.API_SECRET) {
+  // (προαιρετικός έλεγχος API-key)
+  if (process.env.API_SECRET &&
+      event.headers['x-api-key'] !== process.env.API_SECRET) {
     return { statusCode: 401, headers: CORS, body: 'Unauthorized' };
   }
 
-  // 2. Smoke-test Redis (logs μόνο)
-  try {
-    const redis = await getRedis();
-    await redis.set('syndesis:test', '✅ ok', { EX: 60 });
-    console.log('PING REDIS →', await redis.get('syndesis:test')); // "✅ ok"
-  } catch (e) {
-    console.error('Redis ping failed:', e);
-  }
-
-  // 3A. GET → φέρνει όλα τα threads
+  // ---------- GET  ⇒ λίστα threads ----------
   if (event.httpMethod === 'GET') {
     try {
-      const redis  = await getRedis();
-      const raw    = await redis.lRange('threads', 0, -1);
-      const items  = raw.map((x) => JSON.parse(x)).reverse();
+      const redis = await getRedis();
+      const raw   = await redis.lRange('threads', 0, -1);
+      const items = raw.map(JSON.parse).reverse();
       return {
         statusCode: 200,
         headers   : { ...CORS, 'Content-Type': 'application/json' },
@@ -50,30 +37,55 @@ exports.handler = async (event) => {
     }
   }
 
-  // 3B. POST → γράφει νέο thread entry
+  // ---------- POST ⇒ νέο μήνυμα + AI απάντηση ----------
   if (event.httpMethod === 'POST') {
     try {
-      const { userId = 'anonymous', message, metadata = {} } =
+      const { userId = 'web', message, metadata = {} } =
             JSON.parse(event.body || '{}');
-      if (!message) {
+      if (!message)
         return { statusCode: 400, headers: CORS, body: 'Missing "message"' };
-      }
 
-      const entry  = { userId, message, metadata, ts: Date.now() };
-      const redis  = await getRedis();
+      const redis = await getRedis();
+      const entry = { userId, message, metadata, ts: Date.now() };
       await redis.lPush('threads', JSON.stringify(entry));
+
+      // ▶️  Κλήση στο SYNDESIS plugin
+      let aiEntry = null;
+      try {
+        const chat = await openai.chat.completions.create({
+          model      : 'gpt-4o-mini',
+          messages   : [{ role: 'user', content: message }],
+          tools      : [{
+            type: 'function',
+            function: {
+              name       : 'SYNDESIS_PLUGIN',
+              description: 'Call syndesis social plugin',
+              parameters : {
+                type: 'object',
+                properties: { query: { type: 'string' } },
+                required  : ['query'],
+              },
+            },
+          }],
+          tool_choice: { type: 'function', function: { name: 'SYNDESIS_PLUGIN' } },
+        });
+
+        const reply = (chat.choices?.[0].message.content || '').trim();
+        aiEntry = { userId: 'assistant', message: reply, metadata: {}, ts: Date.now() };
+        await redis.lPush('threads', JSON.stringify(aiEntry));
+      } catch (e) { console.error('OpenAI/plugin error', e); }
 
       return {
         statusCode: 201,
         headers   : { ...CORS, 'Content-Type': 'application/json' },
-        body      : JSON.stringify({ ok: true, entry }),
+        body      : JSON.stringify({ ok: true, entry, ai: aiEntry }),
       };
+
     } catch (e) {
       console.error(e);
       return { statusCode: 500, headers: CORS, body: 'Server error (POST)' };
     }
   }
 
-  // 4. Ό,τι άλλο → 405
   return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
 };
