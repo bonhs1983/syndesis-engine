@@ -1,16 +1,21 @@
 // netlify/functions/redis-client.js
-import { createClient } from 'redis';
+const { createClient } = require('redis');
 
-let redis; // κρατάμε 1 μόνο instance (cold + warm starts)
+// DEBUG – τυπώνουμε μία φορά στο cold-start
+console.log('ENV REDIS_URL →', process.env.REDIS_URL || '(undefined)');
 
-export async function getRedis() {
+let redis;                           // single instance (cold + warm)
+
+async function getRedis() {
   if (!redis) {
     redis = createClient({
-      url: process.env.REDIS_URL,
+      url: process.env.REDIS_URL,    // παίρνει από Netlify env
       socket: { tls: true, rejectUnauthorized: false },
     });
-    redis.on('error', (err) => console.error('❌ Redis error', err));
-    await redis.connect();      // lazy TLS connect
+    redis.on('error', (e) => console.error('❌ Redis error', e));
+    await redis.connect();           // lazy TLS connect
   }
   return redis;
 }
+
+module.exports = { getRedis };
