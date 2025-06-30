@@ -1,92 +1,80 @@
-// netlify/functions/thread.js
-const fetch      = require('node-fetch');
-const { getRedis } = require('./redis-client.js');
+const fetch = require("node-fetch");
+const redis = require("./redis-client.js");
 
-// ─────────────────────────────────────────────────────
-// CORS headers
-// ─────────────────────────────────────────────────────
 const CORS = {
-  'Access-Control-Allow-Origin' : '*',
-  'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 };
 
-// ─────────────────────────────────────────────────────
-// Main handler
-// ─────────────────────────────────────────────────────
-exports.handler = async (event) => {
-  // 1) Support pre-flight CORS
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers: CORS };
+exports.handler = async function(event, context) {
+  if (event.httpMethod === "OPTIONS") {
+    return {
+      statusCode: 200,
+      headers: CORS,
+      body: "ok",
+    };
   }
 
-  // 2) Optional: API-key check
-  if (process.env.API_SECRET &&
-      event.headers['x-api-key'] !== process.env.API_SECRET) {
-    return { statusCode: 401, headers: CORS, body: 'Unauthorized' };
-  }
-
-  // 3A) GET → list all threads
-  if (event.httpMethod === 'GET') {
+  if (event.httpMethod === "POST") {
     try {
-      const redis = await getRedis();
-      const raw   = await redis.lRange('threads', 0, -1);
-      const items = raw.map(JSON.parse).reverse();
+      const body = JSON.parse(event.body);
+      const { messages, thread_id = "default" } = body;
+
+      if (!messages || messages.length === 0) {
+        return {
+          statusCode: 400,
+          headers: CORS,
+          body: "Missing messages",
+        };
+      }
+
+      // ✅ Save messages to Redis
+      await redis.set(thread_id, JSON.stringify(messages));
+
+      // 🔍 Log για debug
+      console.log("Messages received:", messages);
+
+      // ✅ Call OpenAI
+      const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: messages,
+          temperature: 0.7
+        })
+      });
+
+      const data = await response.json();
+
+      console.log("OpenAI Response:", data);
+
+      const reply = data.choices?.[0]?.message?.content || "No response";
+
       return {
         statusCode: 200,
-        headers   : { ...CORS, 'Content-Type': 'application/json' },
-        body      : JSON.stringify(items),
+        headers: { ...CORS, "Content-Type": "application/json" },
+        body: JSON.stringify({ reply }),
       };
     } catch (err) {
-      console.error('GET error', err);
-      return { statusCode: 500, headers: CORS, body: 'Server error (GET)' };
-    }
-  }
-
-  // 3B) POST → add new thread + auto-reply
-  if (event.httpMethod === 'POST') {
-    try {
-      const { userId = 'web', message, metadata = {} } =
-            JSON.parse(event.body || '{}');
-
-      if (!message) {
-        return { statusCode: 400, headers: CORS, body: 'Missing "message"' };
-      }
-
-      const redis = await getRedis();
-
-      // save user message
-      const entry = { userId, message, metadata, ts: Date.now() };
-      await redis.lPush('threads', JSON.stringify(entry));
-
-      // call your SYNDESIS Plugin via HTTP
-      let aiEntry = null;
-      try {
-        const pluginUrl = process.env.PLUGIN_URL; 
-        const resp      = await fetch(
-          `${pluginUrl}/?q=${encodeURIComponent(message)}`
-        );
-        const data      = await resp.json();
-        const reply     = data.reply || '(no reply)';
-
-        aiEntry = { userId: 'assistant', message: reply, metadata: {}, ts: Date.now() };
-        await redis.lPush('threads', JSON.stringify(aiEntry));
-      } catch (fetchErr) {
-        console.error('Plugin fetch error', fetchErr);
-      }
-
-      // respond with both entries
+      console.error("Error:", err);
       return {
-        statusCode: 201,
-        headers   : { ...CORS, 'Content-Type': 'application/json' },
-        body      : JSON.stringify({ ok: true, entry, ai: aiEntry }),
+        statusCode: 500,
+        headers: CORS,
+        body: "Server error",
       };
-    } catch (err) {
-      console.error('POST error', err);
-      return { statusCode: 500, headers: CORS, body: 'Server error (POST)' };
     }
   }
 
-  // 4) Other methods not allowed
-  return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
+  return {
+    statusCode: 405,
+    headers: CORS,
+    body: "Method Not Allowed"
+  };
 };

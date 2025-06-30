@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Syndesis Chat</title>
+  <style>
+    body{font-family:sans-serif;max-width:600px;margin:40px auto}
+    ul{list-style:none;padding:0}
+    li{padding:6px 0;border-bottom:1px solid #eee}
+    form{display:flex;gap:8px;margin-bottom:20px}
+    input{flex:1;padding:8px}
+    button{padding:8px 16px}
+  </style>
+</head>
+<body>
+
+  <h1>📚 Syndesis Chat</h1>
+
+  <form id="form">
+    <input id="text" placeholder="Type a message…" autocomplete="off" />
+    <button>Send</button>
+  </form>
+
+  <ul id="threads"></ul>
+
+  <!-- φορτώνουμε τον κώδικα -->
+  <script type="module">
+    import { listThreads, addThread } from './src/api.js';
+
+    const ul   = document.getElementById('threads');
+    const form = document.getElementById('form');
+    const inp  = document.getElementById('text');
+
+    // helper για να σχεδιάζουμε το UL
+    function render(items){
+      ul.innerHTML = items
+        .map(t => `<li><b>${t.userId}:</b> ${t.message}</li>`)
+        .join('');
+    }
+
+    // 1️⃣  Φόρτωσε τα υπάρχοντα μηνύματα μόλις ανοίξει η σελίδα
+    listThreads().then(render);
+
+    // 2️⃣  Όταν πατάς “Send”
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = inp.value.trim();
+      if(!text) return;
+      const { entry } = await addThread(text); // γράφει στη Redis
+      // πρόσθεσέ το π.ρ.ώ.τ.ο στη λίστα
+      render([entry, ...ul.querySelectorAll('li')].map(li => ({
+        userId : li.querySelector('b').textContent.replace(':',''),
+        message: li.textContent.split(': ').slice(1).join(': ')
+      })));
+      inp.value = '';
+      inp.focus();
+    });
+  </script>
+</body>
+</html>
