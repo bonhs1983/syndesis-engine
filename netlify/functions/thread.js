@@ -1,59 +1,66 @@
 // netlify/functions/thread.js
-const { createClient } = require('redis');
+const { getRedis } = require('./redis-client.js');   // helper με 1-και-μοναδικό Redis client
 
-/* ─ shared Redis instance ─ */
-let redis;
-async function getRedis () {
-  if (!redis) {
-    redis = createClient({
-      url: process.env.REDIS_URL.replace('redis://', 'rediss://'), // TLS
-      socket: { tls: true, rejectUnauthorized: false },
-    });
-    redis.on('error', e => console.error('Redis error', e));
-    await redis.connect();
-  }
-  return redis;
-}
-
+// -----------------------------------------------------------------------------
+//  Main handler
+// -----------------------------------------------------------------------------
 exports.handler = async (event) => {
-  // 1. API-key check
+  // 1. Έλεγχος API-key (προαιρετικό – βγάλ’ το αν δεν χρειάζεται)
   if (process.env.API_SECRET && event.headers['x-api-key'] !== process.env.API_SECRET) {
     return { statusCode: 401, body: 'Unauthorized' };
   }
 
-  // 2A. GET  → επιστρέφει τα threads
-  if (event.httpMethod === 'GET') {
-    const r = await getRedis();
-    const raw = await r.lRange('threads', 0, -1);    // όλα τα items
-    const items = raw.map(JSON.parse).reverse();      // πιο πρόσφατα πρώτα
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(items),
-    };
+  // 2. Smoke-test Redis (μόνο για logs – δεν επηρεάζει τη ροή)
+  try {
+    const redis = await getRedis();
+    await redis.set('syndesis:test', '✅ ok', { EX: 60 }); // 60″ TTL
+    const ping = await redis.get('syndesis:test');
+    console.log('PING REDIS →', ping);                    // περιμένουμε "✅ ok"
+  } catch (e) {
+    console.error('Redis ping failed:', e);
   }
 
-  // 2B. POST → γράφει νέο thread
-  if (event.httpMethod === 'POST') {
+  // 3A. GET  → φέρνει όλα τα threads
+  if (event.httpMethod === 'GET') {
     try {
-      const { userId = 'anonymous', message, metadata = {} } = JSON.parse(event.body || '{}');
-      if (!message) return { statusCode: 400, body: 'Missing "message"' };
-
-      const entry = { userId, message, metadata, ts: Date.now() };
-      const r = await getRedis();
-      await r.rPush('threads', JSON.stringify(entry));
-
+      const redis  = await getRedis();
+      const raw    = await redis.lRange('threads', 0, -1);       // όλα τα items
+      const items  = raw.map((x) => JSON.parse(x)).reverse();    // πιο πρόσφατα πρώτα
       return {
-        statusCode: 201,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ok: true, entry }),
+        statusCode: 200,
+        headers:    { 'Content-Type': 'application/json' },
+        body:       JSON.stringify(items),
       };
-    } catch (err) {
-      console.error(err);
-      return { statusCode: 500, body: 'Server error' };
+    } catch (e) {
+      console.error(e);
+      return { statusCode: 500, body: 'Server error (GET)' };
     }
   }
 
-  // 3. Όλα τα άλλα method => 405
+  // 3B. POST → γράφει νέο thread entry
+  if (event.httpMethod === 'POST') {
+    try {
+      const { userId = 'anonymous', message, metadata = {} } =
+            JSON.parse(event.body || '{}');
+      if (!message) {
+        return { statusCode: 400, body: 'Missing "message"' };
+      }
+
+      const entry  = { userId, message, metadata, ts: Date.now() };
+      const redis  = await getRedis();
+      await redis.lPush('threads', JSON.stringify(entry));
+
+      return {
+        statusCode: 201,
+        headers:    { 'Content-Type': 'application/json' },
+        body:       JSON.stringify({ ok: true, entry }),
+      };
+    } catch (e) {
+      console.error(e);
+      return { statusCode: 500, body: 'Server error (POST)' };
+    }
+  }
+
+  // 4. Όλα τα άλλα HTTP methods → 405
   return { statusCode: 405, body: 'Method Not Allowed' };
 };
