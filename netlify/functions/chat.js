@@ -21,7 +21,7 @@ exports.handler = async function(event, context) {
     const TC = 0.0;
 
     const reply = `Metrics updated: Sa=${SA.toFixed(2)}, Id=${ID.toFixed(2)}, Es=${ES.toFixed(2)}, Tc=${TC.toFixed(2)}`;
-    const metrics = { Sa, Id, Es, Tc };
+    const metrics = { Sa: SA, Id: ID, Es: ES, Tc: TC };
 
     return {
       statusCode: 200,
