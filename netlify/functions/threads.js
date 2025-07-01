@@ -1,38 +1,42 @@
 // netlify/functions/threads.js
-const { createClient } = require('redis');
-
-let redis;
-async function getRedis() {
-  if (!redis) {
-    redis = createClient({
-      url: process.env.REDIS_URL.replace('redis://', 'rediss://'),
-      socket: { tls: true, rejectUnauthorized: false },
-    });
-    redis.on('error', e => console.error('Redis error', e));
-    await redis.connect();
-  }
-  return redis;
-}
+// Simple in-memory threads store (reset on cold start)
+let threads = [];
 
 exports.handler = async (event) => {
-  if (process.env.API_SECRET &&
-      event.headers['x-api-key'] !== process.env.API_SECRET) {
-    return { statusCode: 401, body: 'Unauthorized' };
-  }
-  if (event.httpMethod !== 'GET') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
-  }
+  const headers = { 'Content-Type': 'application/json' };
 
   try {
-    const r     = await getRedis();
-    const raw   = await r.lRange('threads', 0, -1);
-    const items = raw.map(JSON.parse).reverse();   // πιο πρόσφατα πρώτα
+    if (event.httpMethod === 'GET') {
+      // Επιστροφή της λίστας threads (πιο πρόσφατα πρώτη)
+      const list = threads.slice().reverse();
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify(list),
+      };
+    }
 
-    return { statusCode: 200,
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify(items) };
+    if (event.httpMethod === 'POST') {
+      // Δημιουργία νέου thread από body { message, metrics }
+      const { message, metrics } = JSON.parse(event.body || '{}');
+      if (!message || !metrics) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'message and metrics required' }) };
+      }
+      const id = Date.now().toString();
+      const item = { id, message, metrics };
+      threads.push(item);
+      return {
+        statusCode: 201,
+        headers,
+        body: JSON.stringify(item),
+      };
+    }
+
+    // Άλλες μέθοδοι δεν επιτρέπονται
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+
   } catch (err) {
-    console.error(err);
-    return { statusCode: 500, body: 'Server error' };
+    console.error('threads function error:', err);
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server error' }) };
   }
 };
