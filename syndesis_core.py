@@ -4,7 +4,14 @@ app = Flask(__name__)
 
 @app.route('/process', methods=['POST'])
 def process():
-    data = request.get_json()
+    if not request.is_json:
+        return jsonify({"error": "Invalid content-type, must be application/json"}), 400
+
+    try:
+        data = request.get_json(force=True)
+    except Exception as e:
+        return jsonify({"error": f"JSON parsing error: {str(e)}"}), 400
+
     message = data.get("message", "")
     return jsonify({"reply": f"Έλαβα το μήνυμα: {message}"})
 
