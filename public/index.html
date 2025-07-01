@@ -1,11 +1,68 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>SYNDESIS Plugin</title>
-  </head>
-  <body>
-    <h1>SYNDESIS Plugin is live.</h1>
-    <p>The plugin is now deployed at this domain.</p>
-  </body>
+<html lang="el">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SYNDESIS Chat Interface</title>
+  <style>
+    body { background: #0a0a0a; color: #eee; font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+    #chat-container { display: flex; flex-direction: column; height: 70vh; width: 100%; max-width: 600px; margin: 0 auto; background: #121212; padding: 15px; border-radius: 8px; }
+    #chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column-reverse; gap: 8px; }
+    .user-msg { align-self: flex-end; background: #0066ff; color: #fff; padding: 6px 10px; border-radius: 12px; max-width: 80%; margin: 2px 0; }
+    .bot-msg  { align-self: flex-start; background: #333;    color: #eee; padding: 6px 10px; border-radius: 12px; max-width: 80%; margin: 2px 0; }
+    #input-container { display: flex; gap: 8px; margin-top: 10px; }
+    #prompt { flex: 1; padding: 8px; border-radius: 20px; border: none; background: #222; color: #eee; }
+    #send-btn { padding: 8px 12px; border: none; border-radius: 20px; background: #0066ff; color: #fff; cursor: pointer; }
+    #send-btn:hover { background: #0055cc; }
+  </style>
+</head>
+<body>
+  <h1>SYNDESIS Chat Interface</h1>
+  <div id="chat-container">
+    <div id="chat-messages"></div>
+    <div id="input-container">
+      <input type="text" id="prompt" placeholder="Πληκτρολόγησε κάτι..." autocomplete="off" />
+      <button id="send-btn">Αποστολή</button>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    const apiUrl = '/.netlify/functions/chat'; // προσαρμόστε εάν χρειάζεται
+    const chatMessages = document.getElementById('chat-messages');
+    const promptInput  = document.getElementById('prompt');
+    const sendBtn      = document.getElementById('send-btn');
+
+    function prependMessage(text, cls) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      div.className = cls;
+      chatMessages.prepend(div);
+    }
+
+    async function sendMessage() {
+      const msg = promptInput.value.trim();
+      if (!msg) return;
+      prependMessage(msg, 'user-msg');
+      promptInput.value = '';
+      try {
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg })
+        });
+        const data = await res.json();
+        prependMessage(data.reply, 'bot-msg');
+      } catch (e) {
+        prependMessage('Σφάλμα δικτύου. Προσπάθησε ξανά.', 'bot-msg');
+      }
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    promptInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); sendMessage(); } });
+
+    prependMessage('SYNDESIS έτοιμο. Πληκτρολόγησε...', 'bot-msg');
+  })();
+  </script>
+</body>
 </html>

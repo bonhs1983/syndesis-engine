@@ -1,5 +1,4 @@
 const fetch = require("node-fetch");
-const redis = require("./redis-client.js");
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -18,26 +17,22 @@ exports.handler = async function(event, context) {
 
   if (event.httpMethod === "POST") {
     try {
+      console.log("RAW BODY RECEIVED:", event.body);
       const body = JSON.parse(event.body);
       const { messages, thread_id = "default" } = body;
 
       if (!messages || messages.length === 0) {
         return {
           statusCode: 400,
-          headers: CORS,
-          body: "Missing messages",
+          headers: { ...CORS, "Content-Type": "application/json" },
+          body: JSON.stringify({ error: "Missing messages" }),
         };
       }
 
-      // ✅ Save messages to Redis
-      await redis.set(thread_id, JSON.stringify(messages));
+      // TEMP: Redis is disabled
+      // await redis.set(thread_id, JSON.stringify(messages));
 
-      // 🔍 Log για debug
-      console.log("Messages received:", messages);
-
-      // ✅ Call OpenAI
       const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -52,22 +47,28 @@ exports.handler = async function(event, context) {
       });
 
       const data = await response.json();
-
-      console.log("OpenAI Response:", data);
-
       const reply = data.choices?.[0]?.message?.content || "No response";
+
+      console.log("REPLY TO CLIENT:", reply);
+
+      const responseBody = JSON.stringify({
+        userId: "assistant",
+        message: reply
+      });
+
+      console.log("RESPONSE JSON STRING:", responseBody);
 
       return {
         statusCode: 200,
         headers: { ...CORS, "Content-Type": "application/json" },
-        body: JSON.stringify({ reply }),
+        body: responseBody,
       };
     } catch (err) {
-      console.error("Error:", err);
+      console.error("ERROR in handler:", err);
       return {
         statusCode: 500,
-        headers: CORS,
-        body: "Server error",
+        headers: { ...CORS, "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "Server error", details: err.message }),
       };
     }
   }

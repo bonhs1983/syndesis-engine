@@ -1,0 +1,91 @@
+{
+  "messages": [
+    {
+      "message": "HI",
+      "metrics": {
+        "Sa": 1.0,
+        "Id": 0.0,
+        "Es": -0.07080695411581098,
+        "Tc": 0.0
+      }
+    },
+    {
+      "message": "python --version",
+      "metrics": {
+        "Sa": 1.0,
+        "Id": 0.0,
+        "Es": -0.23541692798597483,
+        "Tc": 0.0
+      }
+    },
+    {
+      "message": "pip --version",
+      "metrics": {
+        "Sa": 1.0,
+        "Id": 0.0,
+        "Es": -0.17136594193944438,
+        "Tc": 0.0
+      }
+    },
+    {
+      "message": "γεια σου",
+      "metrics": {
+        "Sa": 1.0,
+        "Id": 0.0,
+        "Es": 0.17413656070856343,
+        "Tc": 0.0
+      }
+    },
+    {
+      "message": "threads",
+      "metrics": {
+        "Sa": 1.0,
+        "Id": 0.0,
+        "Es": 0.0227767728985436,
+        "Tc": 0.0
+      }
+    },
+    {
+      "message": ">> thread add Hello world",
+      "metrics": {
+        "Sa": 1.0,
+        "Id": 0.0,
+        "Es": -0.09378039638395086,
+        "Tc": 0.4472135954999579
+      }
+    },
+    {
+      "message": ">> Hello world hello",
+      "metrics": {
+        "Sa": 1.0,
+        "Id": 0.0,
+        "Es": -0.12170845344343939,
+        "Tc": 0.5
+      }
+    },
+    {
+      "message": ">> threads",
+      "metrics": {
+        "Sa": 1.0,
+        "Id": 0.0,
+        "Es": 0.07716359074557912,
+        "Tc": 0.7071067811865475
+      }
+    },
+    {
+      "message": ">> list",
+      "metrics": {
+        "Sa": 1.0,
+        "Id": 0.0,
+        "Es": 0.12425575435655073,
+        "Tc": 0.7071067811865475
+      }
+    }
+  ],
+  "threads": {
+    "Focus": [
+      1.0
+    ]
+  },
+  "restore_points": {}
+}
