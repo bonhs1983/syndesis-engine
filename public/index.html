@@ -40,11 +40,11 @@
 
   <script>
   (function() {
-    const chatApi = '/.netlify/functions/chat';
+    const chatApi    = '/.netlify/functions/chat';
     const threadsApi = '/.netlify/functions/threads';
     const promptInput = document.getElementById('prompt');
-    const sendBtn = document.getElementById('send-btn');
-    const chatMessages = document.getElementById('chat-messages');
+    const sendBtn     = document.getElementById('send-btn');
+    const chatMessages= document.getElementById('chat-messages');
     const threadsList = document.getElementById('threads');
 
     function addMessage(who, text) {
@@ -57,14 +57,15 @@
     async function loadThreads() {
       try {
         const res = await fetch(threadsApi);
+        if (!res.ok) throw new Error(res.statusText);
         const data = await res.json();
         threadsList.innerHTML = '';
         data.forEach(thread => {
           const li = document.createElement('li');
-          li.textContent = thread.message.substring(0, 30) + '...';
-          li.addEventListener('click', () => {
+          li.textContent = thread.message.substring(0, 30) + '…';
+          li.onclick = () => {
             addMessage('them', `${thread.message} (${JSON.stringify(thread.metrics)})`);
-          });
+          };
           threadsList.appendChild(li);
         });
       } catch (e) {
@@ -78,30 +79,37 @@
       addMessage('you', text);
       promptInput.value = '';
       try {
+        // 1) Κλήση στο chat function
         const chatRes = await fetch(chatApi, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: text })
         });
+        if (!chatRes.ok) throw new Error(chatRes.statusText);
         const { reply, metrics } = await chatRes.json();
         addMessage('them', reply);
+
+        // 2) Αποθήκευση στο threads function
         await fetch(threadsApi, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: text, metrics })
         });
+
+        // 3) Επαναφόρτωση λίστας
         await loadThreads();
       } catch (e) {
+        console.error(e);
         addMessage('them', 'Σφάλμα δικτύου. Προσπάθησε ξανά.');
       }
     }
 
-    sendBtn.addEventListener('click', sendMessage);
-    promptInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+    sendBtn.onclick = sendMessage;
+    promptInput.onkeydown = e => { if (e.key === 'Enter') sendMessage(); };
 
-    // αρχικό φόρτωμα
+    // Αρχικό φόρτωμα
     loadThreads();
-    addMessage('them', 'SYNDESIS έτοιμο. Πληκτρολόγησε...');
+    addMessage('them', 'SYNDESIS έτοιμο. Πληκτρολόγησε…');
   })();
   </script>
 </body>

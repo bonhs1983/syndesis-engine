@@ -1,48 +1,47 @@
-// netlify/functions/chat.js
-const { Configuration, OpenAIApi } = require("openai");
+const fetch = require('node-fetch');
 
-exports.handler = async function(event, context) {
-  // προσπέλαση κλειδιού
-  const config = new Configuration({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
-  const openai = new OpenAIApi(config);
+exports.handler = async (event) => {
+  try {
+    const body = JSON.parse(event.body || '{}');
+    const msg = body.message;
 
-  // σώσε το σώμα του request
-  const { message } = JSON.parse(event.body);
+    if (!msg) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Missing prompt/message" })
+      };
+    }
 
-  // κάνε call στο OpenAI
-  const completion = await openai.createChatCompletion({
-    model: "gpt-4o-mini",      //  ή όποιο μοντέλο θες
-    messages: [
-      { role: "system", content: "Είσαι βοήθεια για metrics." },
-      { role: "user", content: message }
-    ],
-  });
+    const apiKey = process.env.OPENAI_API_KEY;
 
-  const reply = completion.data.choices[0].message.content;
+    const chatRes = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: "gpt-3.5-turbo",
+        messages: [
+          { role: "system", content: "Είσαι ο SYNDESIS. Μίλα με καθαρότητα και βάθος." },
+          { role: "user", content: msg }
+        ]
+      })
+    });
 
-  // placeholder metrics
-  const SA = 1.0;
-  const ID = 0.0;
-  const ES = 0.0;
-  const TC = 0.0;
+    const data = await chatRes.json();
+    const reply = data.choices?.[0]?.message?.content || "…";
 
-  // narrative σύνοψη
-  const narrative = [
-    `Ευθυγράμμιση: ${(SA*100).toFixed(0)}%`,
-    `Απόκλιση Intent: ${(ID*100).toFixed(0)}%`,
-    `Αλλαγή συναισθήματος: ${(ES*100).toFixed(0)}%`,
-    `Συνάφεια Thread: ${(TC*100).toFixed(0)}%`
-  ].join(" · ");
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ reply })
+    };
 
-  // επιστροφή JSON
-  return {
-    statusCode: 200,
-    body: JSON.stringify({
-      reply,
-      narrative,
-      metrics: { Sa: SA, Id: ID, Es: ES, Tc: TC }
-    })
-  };
+  } catch (e) {
+    console.error("SYNDESIS GPT ERROR:", e);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "SYNDESIS internal error" })
+    };
+  }
 };

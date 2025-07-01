@@ -1,42 +1,47 @@
 // netlify/functions/threads.js
-// Simple in-memory threads store (reset on cold start)
-let threads = [];
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+};
 
-exports.handler = async (event) => {
-  const headers = { 'Content-Type': 'application/json' };
+exports.handler = async function(event) {
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers: CORS, body: "{}" };
+  }
 
   try {
-    if (event.httpMethod === 'GET') {
-      // Επιστροφή της λίστας threads (πιο πρόσφατα πρώτη)
-      const list = threads.slice().reverse();
+    const body = JSON.parse(event.body || "{}");
+    const { message, metrics, thread_id = "default" } = body;
+
+    // Validation
+    if (!message) {
       return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify(list),
+        statusCode: 400,
+        headers: { ...CORS, "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "Missing message" }),
       };
     }
 
-    if (event.httpMethod === 'POST') {
-      // Δημιουργία νέου thread από body { message, metrics }
-      const { message, metrics } = JSON.parse(event.body || '{}');
-      if (!message || !metrics) {
-        return { statusCode: 400, headers, body: JSON.stringify({ error: 'message and metrics required' }) };
-      }
-      const id = Date.now().toString();
-      const item = { id, message, metrics };
-      threads.push(item);
-      return {
-        statusCode: 201,
-        headers,
-        body: JSON.stringify(item),
-      };
-    }
+    // Εδώ θα αποθηκεύεις τα threads (Redis, DB κλπ). Για δοκιμή κρατάμε σε μνήμη:
+    // (θα αντικαταστήσεις με πραγματικό persistence)
+    const threads = global.__threads || [];
+    threads.unshift({ message, metrics, thread_id, ts: Date.now() });
+    global.__threads = threads.slice(0, 20);
 
-    // Άλλες μέθοδοι δεν επιτρέπονται
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+    // Επιστρέφουμε τη λίστα
+    return {
+      statusCode: 200,
+      headers: { ...CORS, "Content-Type": "application/json" },
+      body: JSON.stringify(global.__threads),
+    };
 
-  } catch (err) {
-    console.error('threads function error:', err);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server error' }) };
+  } catch(err) {
+    console.error("Threads error:", err);
+    return {
+      statusCode: 500,
+      headers: { ...CORS, "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "Server error", details: err.message }),
+    };
   }
 };

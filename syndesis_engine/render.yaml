@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: syndesis-engine
+    env: python
+    buildCommand: ""
+    startCommand: "python syndesis_engine.py"
+    envVars:
+      - key: PORT
+        value: 10000
