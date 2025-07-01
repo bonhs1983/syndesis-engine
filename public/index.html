@@ -5,63 +5,103 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SYNDESIS Chat Interface</title>
   <style>
-    body { background: #0a0a0a; color: #eee; font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-    #chat-container { display: flex; flex-direction: column; height: 70vh; width: 100%; max-width: 600px; margin: 0 auto; background: #121212; padding: 15px; border-radius: 8px; }
-    #chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column-reverse; gap: 8px; }
+    body { background: #0a0a0a; color: #eee; font-family: Arial, sans-serif; margin: 0; padding: 0; }
+    #syndesis-chat-container { display: flex; height: 100vh; }
+    aside#threads-list { width: 250px; background: #222; color: #fff; padding: 1rem; overflow-y: auto; }
+    aside#threads-list h3 { margin-top: 0; font-size: 1.2rem; }
+    aside#threads-list ul { list-style: none; padding: 0; margin: 0; }
+    aside#threads-list li { padding: 0.5rem; border-bottom: 1px solid #444; cursor: pointer; }
+    aside#threads-list li:hover { background: #333; }
+
+    #chat-area { flex: 1; display: flex; flex-direction: column; }
+    #chat-messages { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column-reverse; gap: 8px; }
     .user-msg { align-self: flex-end; background: #0066ff; color: #fff; padding: 6px 10px; border-radius: 12px; max-width: 80%; margin: 2px 0; }
     .bot-msg  { align-self: flex-start; background: #333;    color: #eee; padding: 6px 10px; border-radius: 12px; max-width: 80%; margin: 2px 0; }
-    #input-container { display: flex; gap: 8px; margin-top: 10px; }
+    #input-container { display: flex; gap: 8px; padding: 1rem; background: #121212; }
     #prompt { flex: 1; padding: 8px; border-radius: 20px; border: none; background: #222; color: #eee; }
     #send-btn { padding: 8px 12px; border: none; border-radius: 20px; background: #0066ff; color: #fff; cursor: pointer; }
     #send-btn:hover { background: #0055cc; }
   </style>
 </head>
 <body>
-  <h1>SYNDESIS Chat Interface</h1>
-  <div id="chat-container">
-    <div id="chat-messages"></div>
-    <div id="input-container">
-      <input type="text" id="prompt" placeholder="Πληκτρολόγησε κάτι..." autocomplete="off" />
-      <button id="send-btn">Αποστολή</button>
+  <div id="syndesis-chat-container">
+    <aside id="threads-list">
+      <h3>Παλιές Συνομιλίες</h3>
+      <ul id="threads"></ul>
+    </aside>
+    <div id="chat-area">
+      <div id="chat-messages"></div>
+      <div id="input-container">
+        <input type="text" id="prompt" placeholder="Πληκτρολόγησε κάτι..." autocomplete="off" />
+        <button id="send-btn">Αποστολή</button>
+      </div>
     </div>
   </div>
 
   <script>
   (function() {
-    const apiUrl = '/.netlify/functions/chat'; // προσαρμόστε εάν χρειάζεται
+    const chatApi = '/.netlify/functions/chat';
+    const threadsApi = '/.netlify/functions/threads';
+    const promptInput = document.getElementById('prompt');
+    const sendBtn = document.getElementById('send-btn');
     const chatMessages = document.getElementById('chat-messages');
-    const promptInput  = document.getElementById('prompt');
-    const sendBtn      = document.getElementById('send-btn');
+    const threadsList = document.getElementById('threads');
 
-    function prependMessage(text, cls) {
+    function addMessage(who, text) {
       const div = document.createElement('div');
       div.textContent = text;
-      div.className = cls;
+      div.className = who === 'you' ? 'user-msg' : 'bot-msg';
       chatMessages.prepend(div);
     }
 
+    async function loadThreads() {
+      try {
+        const res = await fetch(threadsApi);
+        const data = await res.json();
+        threadsList.innerHTML = '';
+        data.forEach(thread => {
+          const li = document.createElement('li');
+          li.textContent = thread.message.substring(0, 30) + '...';
+          li.addEventListener('click', () => {
+            addMessage('them', `${thread.message} (${JSON.stringify(thread.metrics)})`);
+          });
+          threadsList.appendChild(li);
+        });
+      } catch (e) {
+        console.error('Error loading threads', e);
+      }
+    }
+
     async function sendMessage() {
-      const msg = promptInput.value.trim();
-      if (!msg) return;
-      prependMessage(msg, 'user-msg');
+      const text = promptInput.value.trim();
+      if (!text) return;
+      addMessage('you', text);
       promptInput.value = '';
       try {
-        const res = await fetch(apiUrl, {
+        const chatRes = await fetch(chatApi, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: msg })
+          body: JSON.stringify({ message: text })
         });
-        const data = await res.json();
-        prependMessage(data.reply, 'bot-msg');
+        const { reply, metrics } = await chatRes.json();
+        addMessage('them', reply);
+        await fetch(threadsApi, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, metrics })
+        });
+        await loadThreads();
       } catch (e) {
-        prependMessage('Σφάλμα δικτύου. Προσπάθησε ξανά.', 'bot-msg');
+        addMessage('them', 'Σφάλμα δικτύου. Προσπάθησε ξανά.');
       }
     }
 
     sendBtn.addEventListener('click', sendMessage);
-    promptInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); sendMessage(); } });
+    promptInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
 
-    prependMessage('SYNDESIS έτοιμο. Πληκτρολόγησε...', 'bot-msg');
+    // αρχικό φόρτωμα
+    loadThreads();
+    addMessage('them', 'SYNDESIS έτοιμο. Πληκτρολόγησε...');
   })();
   </script>
 </body>
