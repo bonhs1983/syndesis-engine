@@ -1,34 +1,27 @@
 // netlify/functions/chat.js
-// CommonJS module — χωρίς ‘export’/ESM syntax
-
-const fetch = require('node-fetch'); // αν θες HTTP call σε Python backend
+// CommonJS module — ενσωματωμένη λογική Syndesis Core σε JavaScript
 
 exports.handler = async function(event, context) {
   try {
-    const payload = JSON.parse(event.body || '{}');
-    const message = payload.message;
+    // parse request body
+    const { message } = JSON.parse(event.body || '{}');
     if (!message || typeof message !== 'string') {
       return {
         statusCode: 400,
-        body: JSON.stringify({
-          error: 'Invalid request: field "message" must be a non-empty string.'
-        }),
+        body: JSON.stringify({ error: 'Invalid request: field "message" must be a non-empty string.' }),
       };
     }
 
-    // —————————————————————————————
-    // Αν θες να στείλεις το μήνυμα στον Python πυρήνα:
-    // const res = await fetch('https://syndesis.social/chat', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ message })
-    // });
-    // const { reply, metrics } = await res.json();
-    // —————————————————————————————
+    // ΣΥΝΔΕΣΗ CORE ΣΕ JS (dummy logic ή πραγματικός αλγόριθμος)
+    // Self-Alignment (S_A), Intent Deviation (I_D), Emotional Tracking (E_s), Thread Correlation (T_c)
+    // Εδώ μπορείτε να αντικαταστήσετε με πραγματικούς υπολογισμούς.
+    const SA = 1.0;  // placeholder
+    const ID = 0.0;
+    const ES = 0.0;
+    const TC = 0.0;
 
-    // Για άμεσο smoke‐test, dummy απάντηση:
-    const reply   = `Metrics updated: Sa=1.00, Id=0.00, Es=0.00, Tc=0.00`;
-    const metrics = { Sa: 1.0, Id: 0.0, Es: 0.0, Tc: 0.0 };
+    const reply = `Metrics updated: Sa=${SA.toFixed(2)}, Id=${ID.toFixed(2)}, Es=${ES.toFixed(2)}, Tc=${TC.toFixed(2)}`;
+    const metrics = { Sa, Id, Es, Tc };
 
     return {
       statusCode: 200,
